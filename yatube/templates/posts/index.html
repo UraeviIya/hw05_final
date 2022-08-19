@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% block title %}Последние обновления на сайте{% endblock %}
+{% load cache %}
+{% block content %}
+  <div class="container py-5">
+    {% cache 20 index_page %}
+    {% for post in page_obj %}
+      {% include 'posts/includes/card.html' %}
+      {% if post.group %}
+        Группа: <a href="{% url 'posts:group_list' post.group.slug %}">{{ post.group.title }}</a>
+      {% endif%}
+      {% if not forloop.last %}<hr>{% endif %}
+    {% endfor %}
+    {% include 'posts/includes/paginator.html' %}
+{% endcache %}
+  </div>
+{% endblock content %}

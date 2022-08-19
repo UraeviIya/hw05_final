@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+{% load thumbnail %}
+{% block content %}
+  <div class="container py-5">
+    <div class="row">
+      <aside class="col-12 col-md-3">
+        <ul class="list-group list-group-flush">
+          <li class="list-group-item">
+            Дата публикации: {{ posts.pub_date|date:"d E Y" }}
+          </li>
+          {% if posts.group %}
+            <li class="list-group-item">
+              Группа: <a href="{% url 'posts:group_list' posts.group.slug %}">{{ posts.group.title }}</a>
+            </li>
+          {% endif %}
+          <li class="list-group-item">
+            Автор: <a href="{% url 'posts:profile' posts.author.username %}">{{ posts.author.get_full_name }}</a>
+          </li>
+          <li class="list-group-item">
+            Всего постов автора: {{ posts.author.posts.count }}
+          </li>
+        </ul>
+      </aside>
+      <article class="col-12 col-md-9">
+        {% thumbnail posts.image "960x339" crop="center" as im %}
+          <img class="card-img my-2" src="{{ im.url }}">
+        {% endthumbnail %}
+        <p>
+          {{ posts.text|linebreaks }}
+          {% if posts.author == user %}
+            <a class="btn btn-primary" href="{% url 'posts:post_edit' posts.id %}">Редактировать запись</a>
+          {% endif %}
+        </p>
+        {% include 'posts/includes/comment.html' %}
+      </article>
+    </div>
+  </div>
+  {% include 'posts/includes/paginator.html' %}
+{% endblock %}
