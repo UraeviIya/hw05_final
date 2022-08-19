@@ -1,6 +1,6 @@
 import os
 
-DEBUG = True 
+DEBUG = True
 SECRET_KEY = 'e!k$1sn0+jdhd-p5et323m&m=k+1vord)_gq*)f7b7yrc2)%#&'
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATES_DIR = os.path.join(BASE_DIR, 'templates')
