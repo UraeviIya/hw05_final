@@ -13,7 +13,6 @@ class PostsURLTests(TestCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Создадим запись в БД для проверки доступности адреса task/test-slug/
         cls.group = Group.objects.create(
             title='Тестовый заголовок',
             slug='test_slug',
@@ -27,12 +26,9 @@ class PostsURLTests(TestCase):
         cls.non_author = User.objects.create_user(username='non_author')
 
     def setUp(self):
-        # Создаем экземпляр клиента
         self.guest_client = Client()
-        # Создаем авторизированного клиента и логинем его
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-        # Создаем автора и логинем его
         self.author_client = Client()
         self.author_client.force_login(self.non_author)
 
@@ -90,3 +86,8 @@ class PostsURLTests(TestCase):
                 self.assertEqual(
                     self.authorized_client.get(path).status_code, template,
                     HTTPStatus.OK)
+
+    def test_404_response_code(self):
+        """Проверяем возврат страницы 404"""
+        response = self.guest_client.get('/SomeOne/', follow=True)
+        self.assertEqual(response.status_code, HTTPStatus.NOT_FOUND)

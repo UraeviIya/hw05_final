@@ -60,8 +60,22 @@ class Comment(models.Model):
                              related_name='comments')
     author = models.ForeignKey(User, on_delete=models.CASCADE,
                                related_name='comments')
-    text = models.TextField()
-    created = models.DateTimeField("Дата публикации", auto_now_add=True)
+    text = models.TextField(verbose_name='Текст комментария')
+    created = models.DateTimeField(verbose_name='Дата публикации',
+                                   auto_now_add=True
+                                   )
 
     def __str__(self):
-        return self.text
+        return self.text[:20]
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE,
+                             related_name='follower')
+    author = models.ForeignKey(User, on_delete=models.CASCADE,
+                               related_name='following')
+
+    class Meta:
+        ordering = ('author',)
+        verbose_name = 'Подписка'
+        verbose_name_plural = 'Подписки'

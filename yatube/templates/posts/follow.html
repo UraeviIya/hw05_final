@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% load user_filters %}
+{% block title %}Подписки пользователя{% endblock %}
+{% block header %}Подписки пользователя{% endblock %}
+{% block content %}
+  <div class="container">
+    {% include 'posts/includes/switcher.html' with follow=True %}
+    {% for post in page_obj %}
+      {% include 'posts/includes/card.html' with post=post %}
+    {% endfor %}
+    {% include 'posts/includes/paginator.html' with items=page %}
+  </div>  
+{% endblock %} 
