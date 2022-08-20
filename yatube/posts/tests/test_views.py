@@ -8,7 +8,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
-from posts.models import Comment, Group, Post
+from posts.models import Comment, Follow, Group, Post
 
 User = get_user_model()
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
@@ -63,33 +63,7 @@ class PostViewsTests(TestCase):
         self.user = PostViewsTests.user
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
-
-    def test_add_comment(self):
-        """Проверяем что комментарий создается
-        и появляется на странице поста
-        """
-        form_data = {
-            'author': self.user,
-            'text': 'Тестовый комментарий',
-            'post_id': self.post.id,
-        }
-        response = self.authorized_client.post(
-            reverse('posts:add_comment', kwargs={
-                    'post_id': self.post.id
-                    }),
-            data=form_data,
-            follow=True
-        )
-        self.assertRedirects(response, reverse('posts:post_detail', kwargs={
-            'post_id': self.post.id
-        }))
-        self.assertTrue(
-            Comment.objects.filter(
-                author=self.user,
-                text='Тестовый комментарий',
-                post_id=self.post.id,
-            ).exists()
-        )
+        self.comment = PostViewsTests.comment
 
     def test_img_on_page(self):
         """Проверяем отоброжение картинки на страницах"""
@@ -203,6 +177,68 @@ class PostViewsTests(TestCase):
         self.assertNotEqual(
             self.authorized_client.get(reverse('posts:index')).context.get(
                 'page_obj')[0].group, self.group_2)
+
+    def test_add_comment(self):
+        """Проверяем что комментарий создается и
+         появляется на странице поста
+         """
+        form_data = {
+            'author': self.user,
+            'text': 'Тестовый комментарий',
+            'post_id': self.post.id,
+        }
+        response = self.authorized_client.post(
+            reverse('posts:add_comment', kwargs={'post_id': self.post.id}),
+            data=form_data,
+            follow=True
+        )
+        self.assertRedirects(response, reverse('posts:post_detail', kwargs={
+            'post_id': self.post.id}))
+        self.assertTrue(Comment.objects.filter(author=self.user,
+                        text='Тестовый комментарий',
+                        post_id=self.post.id,).exists())
+
+    def test_follow_index(self):
+        """Проверка поста в ленте подписчиков и не подписчиков,
+        если user не подписан на автора, посты не появятся в ленте
+        """
+        response = self.authorized_client.get(reverse('posts:follow_index'))
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args=[self.user]))
+        response_after_follow = self.authorized_client.get(
+            reverse('posts:follow_index'))
+        self.assertEqual(response.content, response_after_follow.content)
+
+    def test_login_user_follow(self):
+        """
+        Авторизованный пользователь может подписываться
+        на других пользователей
+        """
+        followers_before = len(
+            Follow.objects.all().filter(author_id=self.user.id))
+
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args=[self.user]))
+        followers_after = len(
+            Follow.objects.all().filter(author_id=self.user.id))
+        self.assertNotEqual(followers_after + 1, followers_before)
+
+    def test_login_user_unfollow(self):
+        """
+        Авторизованный пользователь может подписываться
+        на других пользователей, а также отписываться
+        """
+        followers_before = len(
+            Follow.objects.all().filter(author_id=self.user.id))
+
+        self.authorized_client.get(
+            reverse('posts:profile_follow', args=[self.user]))
+        self.authorized_client.get(
+            reverse('posts:profile_unfollow', args=[self.user]))
+
+        followers_after_unfollow = len(
+            Follow.objects.all().filter(author_id=self.user.id))
+        self.assertEqual(followers_after_unfollow, followers_before)
 
 
 class PaginatorViewsTest(TestCase):
