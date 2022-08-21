@@ -6,10 +6,13 @@ from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+
 from posts.forms import PostForm
 from posts.models import Group, Post
 
 User = get_user_model()
+
+
 TEMP_MEDIA_ROOT = tempfile.mkdtemp(dir=settings.BASE_DIR)
 
 
@@ -36,7 +39,6 @@ class PostCreateFormTests(TestCase):
         shutil.rmtree(TEMP_MEDIA_ROOT, ignore_errors=True)
 
     def setUp(self):
-        self.guest_client = Client()
         self.authorized_client = Client()
         self.authorized_client.force_login(PostCreateFormTests.author)
 
@@ -59,7 +61,7 @@ class PostCreateFormTests(TestCase):
         )
         form_data = {
             'group': self.group.id,
-            'text': 'текст',
+            'text': self.post.text,
             'image': uploaded,
         }
         response = self.authorized_client.post(reverse('posts:post_create'),
@@ -69,7 +71,7 @@ class PostCreateFormTests(TestCase):
                              kwargs={'username': self.author}))
         self.assertEqual(Post.objects.count(), post_count + 1)
         self.assertTrue(Post.objects.filter(
-            text='текст',
+            text=self.post.text,
             group=PostCreateFormTests.group,
             image='posts/small.gif').exists())
 
@@ -77,18 +79,29 @@ class PostCreateFormTests(TestCase):
         """
         Проверяем возможность редактирование поста через форму на странице
         """
-        path = reverse('posts:post_edit',
-                       kwargs={'post_id': PostCreateFormTests.post.id})
-        self.authorized_client.get(path)
         form_data = {
-            'group': self.group.id,
-            'text': 'текст',
+            'text': self.post.text,
+            'group': self.group.id
         }
-        self.authorized_client.post(
-            reverse('posts:post_edit',
-                    kwargs={'post_id': PostCreateFormTests.post.id}),
-            data=form_data, follow=True)
-
-        self.assertTrue(Post.objects.filter(
-            text='текст',
-            group=PostCreateFormTests.group).exists())
+        group = PostCreateFormTests.group
+        test_post = Post.objects.create(
+            text=self.post.text,
+            author=PostCreateFormTests.author,
+            group=group
+        )
+        test_post_id = test_post.id
+        posts_count_before = Post.objects.count()
+        path = self.authorized_client.post(
+            reverse(
+                'posts:post_edit', kwargs={'post_id': self.post.id}
+            ),
+            data=form_data,
+            follow=True
+        )
+        self.assertRedirects(path, reverse('posts:post_detail', kwargs={
+            'post_id': self.post.id}))
+        edited_post = Post.objects.get(id=test_post_id)
+        self.assertEqual(Post.objects.count(), posts_count_before)
+        self.assertEqual(edited_post.text, form_data['text'])
+        self.assertEqual(edited_post.group, self.group)
+        self.assertEqual(edited_post.author, PostCreateFormTests.author)

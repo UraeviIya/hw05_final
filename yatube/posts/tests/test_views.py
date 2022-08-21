@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client, TestCase, override_settings
 from django.urls import reverse
+
 from posts.models import Comment, Follow, Group, Post
 
 User = get_user_model()
@@ -78,18 +79,18 @@ class PostViewsTests(TestCase):
                     'page_obj'][0].image, self.post.image.name)
 
     def test_cach_in_index_page(self):
-        """Проверяем кеширование на главной странице"""
+        """Проверяем кеширование главной страницы."""
         response = self.authorized_client.get(reverse('posts:index'))
-        before_cache = response.content
-
+        with_cache = response.content
         Post.objects.create(
             group=PostViewsTests.group,
-            text='после кэша',
-            author=User.objects.get(username='SomeName'))
+            text='Новый текст, после кэша',
+            author=PostViewsTests.user,
+        )
         cache.clear()
         response = self.authorized_client.get(reverse('posts:index'))
-        after_cache = response.content
-        self.assertNotEqual(before_cache, after_cache)
+        after_clearing_the_cache = response.content
+        self.assertNotEqual(with_cache, after_clearing_the_cache)
 
     def test_views_correct_template(self):
         """Проверяем соответствие view-функций адресам."""
@@ -170,7 +171,7 @@ class PostViewsTests(TestCase):
         for path in urls:
             with self.subTest(path=path):
                 self.assertEqual(self.authorized_client.get(path).context[
-                    'page_obj'][0].text, 'Тестовый пост')
+                    'page_obj'][0].text, self.post.text)
 
     def test_new_post__in_group(self):
         """Проверяем что пост попал в свою группу."""
@@ -184,7 +185,7 @@ class PostViewsTests(TestCase):
          """
         form_data = {
             'author': self.user,
-            'text': 'Тестовый комментарий',
+            'text': self.comment.text,
             'post_id': self.post.id,
         }
         response = self.authorized_client.post(
@@ -195,7 +196,7 @@ class PostViewsTests(TestCase):
         self.assertRedirects(response, reverse('posts:post_detail', kwargs={
             'post_id': self.post.id}))
         self.assertTrue(Comment.objects.filter(author=self.user,
-                        text='Тестовый комментарий',
+                        text=self.comment.text,
                         post_id=self.post.id,).exists())
 
     def test_follow_index(self):
@@ -205,40 +206,59 @@ class PostViewsTests(TestCase):
         response = self.authorized_client.get(reverse('posts:follow_index'))
         self.authorized_client.get(
             reverse('posts:profile_follow', args=[self.user]))
-        response_after_follow = self.authorized_client.get(
+        after_follow = self.authorized_client.get(
             reverse('posts:follow_index'))
-        self.assertEqual(response.content, response_after_follow.content)
+        self.assertEqual(response.content, after_follow.content)
+
+
+class FollowingTest(TestCase):
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.author = User.objects.create(
+            username='Блогер'
+        )
+        cls.follower = User.objects.create(
+            username='Подписчик'
+        )
 
     def test_login_user_follow(self):
-        """
-        Авторизованный пользователь может подписываться
-        на других пользователей
-        """
-        followers_before = len(
-            Follow.objects.all().filter(author_id=self.user.id))
+        """Проверяем работу подписки на блогера"""
+        self.assertEqual(Follow.objects.count(), 0)
+        client_follower = Client()
+        client_follower.force_login(self.follower)
 
-        self.authorized_client.get(
-            reverse('posts:profile_follow', args=[self.user]))
-        followers_after = len(
-            Follow.objects.all().filter(author_id=self.user.id))
-        self.assertNotEqual(followers_after + 1, followers_before)
+        client_follower.get(
+            reverse(
+                'posts:profile_follow',
+                args=(self.author.username,)
+            )
+        )
+        self.assertEqual(Follow.objects.count(), 1)
+        follow_obj = Follow.objects.first()
+        self.assertEqual(follow_obj.author, self.author)
+        self.assertEqual(follow_obj.user, self.follower)
+        client_follower.get(reverse('posts:profile_follow',
+                                    args=(self.author.username,))
+                            )
+        self.assertEqual(Follow.objects.count(), 1)
+        follows = Follow.objects.filter(author=self.author,
+                                        user=self.follower)
+        self.assertEqual(len(follows), 1)
 
     def test_login_user_unfollow(self):
-        """
-        Авторизованный пользователь может подписываться
-        на других пользователей, а также отписываться
-        """
-        followers_before = len(
-            Follow.objects.all().filter(author_id=self.user.id))
-
-        self.authorized_client.get(
-            reverse('posts:profile_follow', args=[self.user]))
-        self.authorized_client.get(
-            reverse('posts:profile_unfollow', args=[self.user]))
-
-        followers_after_unfollow = len(
-            Follow.objects.all().filter(author_id=self.user.id))
-        self.assertEqual(followers_after_unfollow, followers_before)
+        """Проверяем отписку от блогера"""
+        self.assertEqual(Follow.objects.count(), 0)
+        Follow.objects.create(author=self.author, user=self.follower)
+        self.assertEqual(Follow.objects.count(), 1)
+        client_follower = Client()
+        client_follower.force_login(self.follower)
+        client_follower.get(reverse('posts:profile_unfollow',
+                                    args=(self.author.username,))
+                            )
+        self.assertEqual(Follow.objects.count(), 0)
+        follows = Follow.objects.filter(author=self.author, user=self.follower)
+        self.assertFalse(follows)
 
 
 class PaginatorViewsTest(TestCase):
