@@ -78,19 +78,18 @@ class PostViewsTests(TestCase):
                 self.assertEqual(self.authorized_client.get(path).context[
                     'page_obj'][0].image, self.post.image.name)
 
-    def test_cach_in_index_page(self):
-        """Проверяем кеширование главной страницы."""
-        response = self.authorized_client.get(reverse('posts:index'))
-        with_cache = response.content
-        Post.objects.create(
-            group=PostViewsTests.group,
-            text='Новый текст, после кэша',
-            author=PostViewsTests.user,
-        )
+    def test_cache_in_index_page(self):
+        """Проверяем кеширование на главной странице"""
+        before_cache = self.authorized_client.get(
+            reverse('posts:index')).content
+        Post.objects.all().delete()
+        after_cache = self.authorized_client.get(
+            reverse('posts:index')).content
+        self.assertEqual(before_cache, after_cache)
         cache.clear()
-        response = self.authorized_client.get(reverse('posts:index'))
-        after_clearing_the_cache = response.content
-        self.assertNotEqual(with_cache, after_clearing_the_cache)
+        after_cache = self.authorized_client.get(
+            reverse('posts:index')).content
+        self.assertNotEqual(before_cache, after_cache)
 
     def test_views_correct_template(self):
         """Проверяем соответствие view-функций адресам."""
